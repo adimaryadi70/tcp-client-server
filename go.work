@@ -1,0 +1,8 @@
+go 1.20
+
+use (
+	./client
+	./server
+	./server_grpc
+	./client_grpc
+)
