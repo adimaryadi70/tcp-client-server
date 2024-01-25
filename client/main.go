@@ -6,17 +6,30 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+const key = "SDJIWJIADJIAJDIAJDIJIW@I)@)@)DKIWJDIJDIAJDI"
+
+type SendMessage struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Services string `json:"services"`
+	Data     string `json:"data"`
+	Key      string `json:"key"`
+}
 
 func main() {
 	host := "localhost"
-	port := "9898"
+	port := "8081"
 	address := host + ":" + port
 	timeSecond := 2 * time.Second
 	portInt, _ := strconv.Atoi(port)
@@ -36,10 +49,29 @@ func main() {
 
 	for scanner.Scan() {
 		message := scanner.Text()
-		_, _ = fmt.Fprintf(conn, "%s\n", message)
+		dataSend := SendMessage{
+			ID:       generateID(),
+			Type:     "Request",
+			Services: "authentication.login",
+			Data:     message,
+			Key:      key,
+		}
+
+		sender, err := json.Marshal(dataSend)
+		textEncrypt, err := AES256Encrypt(key, string(sender))
+		if err != nil {
+			log.Println("Error Enryption:", err)
+		}
+		_, _ = fmt.Fprintf(conn, "%s\n", textEncrypt)
 	}
 }
+func generateID() string {
+	// Generate a new UUID
+	id := uuid.New()
 
+	// Convert the UUID to a string
+	return id.String()
+}
 func isPortOpen(host string, port int, timeout time.Duration) bool {
 	address := fmt.Sprintf("%s:%d", host, port)
 	conn, err := net.DialTimeout("tcp", address, timeout)

@@ -10,7 +10,7 @@ import (
 	"net"
 )
 
-const key = "0123456789abcdef"
+const key = "SDJIWJIADJIAJDIAJDIJIW@I)@)@)DKIWJDIJDIAJDI"
 
 func handleConnection(conn net.Conn, messages chan<- string) {
 	defer conn.Close()
@@ -51,7 +51,7 @@ func main() {
 	clients := make(map[net.Conn]bool)
 	messages := make(chan string, 10)
 
-	listenAddr := ":9898"
+	listenAddr := ":8081"
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		fmt.Println("Error listening:", err)
