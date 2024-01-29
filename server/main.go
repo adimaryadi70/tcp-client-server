@@ -6,18 +6,27 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 )
 
 const key = "SDJIWJIADJIAJDIAJDIJIW@I)@)@)DKIWJDIJDIAJDI"
+
+type DataMessage struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Services string `json:"services"`
+	Data     string `json:"data"`
+	Key      string `json:"key"`
+}
 
 func handleConnection(conn net.Conn, messages chan<- string) {
 	defer conn.Close()
 
 	clientAddr := conn.RemoteAddr().String()
 	fmt.Printf("Client connected: %s\n", clientAddr)
-
 	//Send a welcome message to the client
 	conn.Write([]byte("Selamat Datang Gateway Komunikasi!\n"))
 
@@ -25,10 +34,22 @@ func handleConnection(conn net.Conn, messages chan<- string) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		message := scanner.Text()
-
+		decode, err := AES256Decrypt(key, message)
+		if err != nil {
+			log.Println("Error Decode ", err)
+		}
+		var dataMessage DataMessage
+		err = json.Unmarshal([]byte(decode), &dataMessage)
+		if err != nil {
+			log.Println("Error Unmarshal ", err)
+		}
 		fmt.Printf("Received from %s: %s\n", clientAddr, message)
-
+		if key != dataMessage.Key {
+			fmt.Println("Access Rejected")
+			conn.Close()
+		}
 		// Send the received message to all connected clients
+
 		messages <- message
 	}
 }
@@ -37,6 +58,7 @@ func broadcastMessages(messages <-chan string, clients map[net.Conn]bool) {
 	for message := range messages {
 		// Broadcast the message to all connected clients
 		for client := range clients {
+			fmt.Println("client", client.RemoteAddr())
 			_, err := client.Write([]byte(message + "\n"))
 			if err != nil {
 				// Handle error, e.g., client disconnected

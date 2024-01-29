@@ -3,7 +3,7 @@ module client_grpc
 go 1.20
 
 require (
-	github.com/adimaryadi70/proto v0.0.0-20240124040111-95df81161caa
+	github.com/castaneai/grpc-broadcast-example v0.0.0-20191001120545-616300c3af58
 	google.golang.org/grpc v1.61.0
 )
 

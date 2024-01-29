@@ -1,13 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"fmt"
 	"log"
 	"os"
+	"time"
 
-	pb "github.com/adimaryadi70/proto/example"
+	pb "github.com/castaneai/grpc-broadcast-example"
 	"google.golang.org/grpc"
 )
 
@@ -18,34 +17,33 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := pb.NewMyServiceClient(conn)
+	c := pb.NewChatRoomClient(conn)
 
-	// req := &pb.MyRequest{
-	// 	Data: "Tester Kirim GRPC",
-	// }
+	clientName := os.Args[0]
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("Enter Message ")
-		scanner.Scan()
-		input := scanner.Text()
+	ctx := context.Background()
 
-		if input == "exit" {
-			break
-		}
-
-		req := &pb.MyRequest{
-			Data: input,
-		}
-
-		ctx := context.Background()
-		res, err := client.MyMethod(ctx, req)
-		if err != nil {
-			log.Fatal("Failed to call ", err)
-		}
-		fmt.Printf("Response from server: %s\n", res.Result)
+	stream, err := c.Chat(ctx)
+	if err != nil {
+		log.Fatal(err)
 	}
-	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error reading input: %v", err)
+	go func() {
+		for {
+			message := "test" + clientName
+			if err := stream.SendMsg(&pb.ChatRequest{Message: message}); err != nil {
+				log.Fatal(err)
+			}
+
+			log.Printf("Send: %s", message)
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("recv: %s", resp.Message)
 	}
 }

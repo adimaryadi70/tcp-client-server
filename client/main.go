@@ -84,7 +84,6 @@ func isPortOpen(host string, port int, timeout time.Duration) bool {
 
 func ReadFromServer(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
-
 	for scanner.Scan() {
 		message := scanner.Text()
 		fmt.Println("Received From Server => ", message)

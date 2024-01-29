@@ -1,37 +1,94 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"net"
+	"os"
+	"sync"
 
-	pb "github.com/adimaryadi70/proto/example"
+	pb "github.com/castaneai/grpc-broadcast-example"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 )
 
-type server struct {
-	pb.UnimplementedMyServiceServer
+type User struct {
+	chat pb.ChatRoom_ChatServer
+	move pb.ChatRoom_ChatServer
 }
 
-func (s *server) MyMethod(ctx context.Context, req *pb.MyRequest) (*pb.MyResponse, error) {
-	result := fmt.Sprintf("Received: %s", req.Data)
-	log.Println("Message ", req.Data)
-	return &pb.MyResponse{Result: result}, nil
+type server struct {
+	clients map[string]pb.ChatRoom_ChatServer
+	mu      sync.RWMutex
+}
+
+func (s *server) addClient(uid string, srv pb.ChatRoom_ChatServer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clients[uid] = srv
+}
+
+func (s *server) removeClient(uid string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.clients, uid)
+}
+
+func (s *server) getClients() []pb.ChatRoom_ChatServer {
+	var cs []pb.ChatRoom_ChatServer
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, c := range s.clients {
+		cs = append(cs, c)
+	}
+	return cs
+}
+
+func (s *server) Chat(srv pb.ChatRoom_ChatServer) error {
+	uid := uuid.Must(uuid.NewRandom()).String()
+	log.Println("id User:", uid)
+
+	s.addClient(uid, srv)
+
+	defer s.removeClient(uid)
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("error :", err)
+			os.Exit(1)
+		}
+	}()
+
+	for {
+		response, err := srv.Recv()
+		if err != nil {
+			log.Printf("recv err: %v", err)
+			break
+		}
+		log.Printf("broadcast: %s", response.Message)
+		for _, data := range s.getClients() {
+			if err := data.Send(&pb.ChatResponse{Message: response.Message}); err != nil {
+				log.Printf("broadcast err: %v", err)
+			}
+		}
+	}
+	return nil
 }
 
 func main() {
-	lis, err := net.Listen("tcp", ":9898")
+	address := ":9898"
+	listen, err := net.Listen("tcp", address)
+	log.Println("Server Listen:", address)
 	if err != nil {
-		fmt.Printf("Failed to listen: %v", err)
-		return
+		log.Fatalf("failed to listen: %v", err)
 	}
-
-	grpcServer := grpc.NewServer()
-	pb.RegisterMyServiceServer(grpcServer, &server{})
-
-	fmt.Println("gRPC server is running on :9898")
-	if err := grpcServer.Serve(lis); err != nil {
-		fmt.Printf("Failed to serve: %v", err)
+	s := grpc.NewServer()
+	pb.RegisterChatRoomServer(s, &server{
+		clients: make(map[string]pb.ChatRoom_ChatServer),
+		mu:      sync.RWMutex{},
+	})
+	if err := s.Serve(listen); err != nil {
+		log.Fatalf("failed to serve: %v", err)
 	}
 }
